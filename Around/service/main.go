@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strconv"
 
+	"cloud.google.com/go/bigtable"
 	"cloud.google.com/go/storage"
 	"github.com/olivere/elastic"
 	"github.com/pborman/uuid"
@@ -17,11 +18,14 @@ import (
 )
 
 const (
-	POST_INDEX  = "post"
-	POST_TYPE   = "post"
-	DISTANCE    = "200km"
-	ES_URL      = "http://35.229.30.107:9200"
-	BUCKET_NAME = "post-images-kevin"
+	POST_INDEX          = "post"
+	POST_TYPE           = "post"
+	DISTANCE            = "200km"
+	ES_URL              = "http://35.229.30.107:9200"
+	BUCKET_NAME         = "post-images-kevin"
+	BIGTABLE_PROJECT_ID = "around-226307"
+	BT_INSTANCE         = "around-post"
+	CREDENTIAL          = "Around-4f4249b669e6.json"
 )
 
 type Location struct {
@@ -109,7 +113,7 @@ func saveToGCS(r io.Reader, bucketName, objectName string) (*storage.ObjectAttrs
 	ctx := context.Background()
 
 	// create a connection with GCS
-	client, err := storage.NewClient(ctx, option.WithCredentialsFile("Around-65b31ceb88d1.json"))
+	client, err := storage.NewClient(ctx, option.WithCredentialsFile(CREDENTIAL))
 	if err != nil {
 		return nil, err
 	}
@@ -143,6 +147,28 @@ func saveToGCS(r io.Reader, bucketName, objectName string) (*storage.ObjectAttrs
 
 	fmt.Printf("Image is saved to GCS: %s\n", attrs.MediaLink)
 	return attrs, nil
+}
+
+// Save a post to BigTable
+func saveToBigTable(p *Post, id string) {
+	ctx := context.Background()
+	client, err := bigtable.NewClient(ctx, BIGTABLE_PROJECT_ID, BT_INSTANCE, option.WithCredentialsFile(CREDENTIAL))
+	if err != nil {
+		panic(err)
+	}
+	tbl := client.Open("post")
+	mut := bigtable.NewMutation()
+	t := bigtable.Now()
+	mut.Set("post", "user", t, []byte(p.User))
+	mut.Set("post", "message", t, []byte(p.Message))
+	mut.Set("location", "lat", t, []byte(strconv.FormatFloat(p.Location.Lat, 'f', -1, 64)))
+	mut.Set("location", "lon", t, []byte(strconv.FormatFloat(p.Location.Lon, 'f', -1, 64)))
+
+	err = tbl.Apply(ctx, id, mut)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Post is saved to BigTable: %s\n", p.Message)
 }
 
 // helper function for handlerSearch
@@ -229,6 +255,8 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fmt.Printf("Saved one post to ElasticSearch: %s", p.Message)
+
+	saveToBigTable(&p, id)
 }
 
 func handlerSearch(w http.ResponseWriter, r *http.Request) {
