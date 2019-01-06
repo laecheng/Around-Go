@@ -20,7 +20,7 @@ const (
 	POST_INDEX  = "post"
 	POST_TYPE   = "post"
 	DISTANCE    = "200km"
-	ES_URL      = "http://35.229.30.107:9200/"
+	ES_URL      = "http://35.229.30.107:9200"
 	BUCKET_NAME = "post-images-kevin"
 )
 
@@ -109,7 +109,7 @@ func saveToGCS(r io.Reader, bucketName, objectName string) (*storage.ObjectAttrs
 	ctx := context.Background()
 
 	// create a connection with GCS
-	client, err := storage.NewClient(ctx, option.WithCredentialsFile("E:\\keys\\Around-65b31ceb88d1.json"))
+	client, err := storage.NewClient(ctx, option.WithCredentialsFile("Around-65b31ceb88d1.json"))
 	if err != nil {
 		return nil, err
 	}
