@@ -31,7 +31,8 @@ public class PostDumpFlow {
        PipelineOptions options = PipelineOptionsFactory.fromArgs(args).create();
 
        Pipeline p = Pipeline.create(options);
-      
+
+       // config that tell where to read data from
        CloudBigtableScanConfiguration config = new CloudBigtableScanConfiguration.Builder()
                .withProjectId(PROJECT_ID)
                .withInstanceId("around-post")
@@ -39,6 +40,7 @@ public class PostDumpFlow {
                .build();
 
        PCollection<Result> btRows = p.apply(Read.from(CloudBigtableIO.read(config)));
+       // Define the how to transform the data
        PCollection<TableRow> bqRows = btRows.apply(ParDo.of(new DoFn<Result, TableRow>() {
            @Override
            public void processElement(ProcessContext c) {
@@ -57,22 +59,23 @@ public class PostDumpFlow {
                c.output(row);
            }
        }));
-       
+
+       // create schema for BigQuery
        List<TableFieldSchema> fields = new ArrayList<>();
        fields.add(new TableFieldSchema().setName("postId").setType("STRING"));
        fields.add(new TableFieldSchema().setName("user").setType("STRING"));
        fields.add(new TableFieldSchema().setName("message").setType("STRING"));
        fields.add(new TableFieldSchema().setName("lat").setType("FLOAT"));
        fields.add(new TableFieldSchema().setName("lon").setType("FLOAT"));
-
        TableSchema schema = new TableSchema().setFields(fields);
+
+       // output the data to BigQuery
        bqRows.apply(BigQueryIO.Write
                .named("Write")
                .to(PROJECT_ID + ":" + "post_analysis" + "." + "daily_dump_1")
                .withSchema(schema)
                .withWriteDisposition(BigQueryIO.Write.WriteDisposition.WRITE_TRUNCATE)
                .withCreateDisposition(BigQueryIO.Write.CreateDisposition.CREATE_IF_NEEDED));
-
        p.run();
    }
 }

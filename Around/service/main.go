@@ -187,6 +187,7 @@ func saveToGCS(r io.Reader, bucketName, objectName string) (*storage.ObjectAttrs
 	}
 
 	// set storage avaiable to all users (public)
+	// all users have view access to the images
 	if err = object.ACL().Set(ctx, storage.AllUsers, storage.RoleReader); err != nil {
 		return nil, err
 	}
