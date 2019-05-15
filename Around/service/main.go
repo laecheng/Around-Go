@@ -66,6 +66,7 @@ func main() {
 	fmt.Println("started-service")
 	createIndexIfNotExist()
 
+	// use jwt middleware to provide token-based authentication
 	jwtMiddleware := jwtmiddleware.New(jwtmiddleware.Options{
 		ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
 			return []byte(mySigningKey), nil
@@ -73,6 +74,7 @@ func main() {
 		SigningMethod: jwt.SigningMethodHS256,
 	})
 
+	// use gorilla mux router to handle request
 	r := mux.NewRouter()
 
 	r.Handle(API_PREFIX+"/post", jwtMiddleware.Handler(http.HandlerFunc(handlerPost))).Methods("POST", "OPTIONS")
@@ -269,6 +271,7 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization")
 
+	// use the username from Token
 	user := r.Context().Value("user")
 	claims := user.(*jwt.Token).Claims
 	username := claims.(jwt.MapClaims)["username"]
