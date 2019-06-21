@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"path/filepath"
 	"reflect"
 	"strconv"
 
@@ -25,7 +24,7 @@ const (
 	POST_INDEX          = "post"
 	POST_TYPE           = "post"
 	DISTANCE            = "200km"
-	ES_URL              = "http://35.229.30.107:9200"
+	ES_URL              = "http://130.211.123.198:9200"
 	BUCKET_NAME         = "post-images-kevin"
 	BIGTABLE_PROJECT_ID = "around-226307"
 	BT_INSTANCE         = "around-post"
@@ -267,11 +266,16 @@ func readFromES(lat, lon float64, ran string) ([]Post, error) {
 func handlerPost(w http.ResponseWriter, r *http.Request) {
 	// Parse from body of request to get a json object.
 	fmt.Println("Received one post request")
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization")
 
-	// use the username from Token
+	if r.Method == "OPTIONS" {
+		return
+	}
+
+	//use the username from Token
 	user := r.Context().Value("user")
 	claims := user.(*jwt.Token).Claims
 	username := claims.(jwt.MapClaims)["username"]
@@ -306,27 +310,28 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
 	}
 	p.Url = attrs.MediaLink
 
-	// send image to ML and get score
-	im, header, _ := r.FormFile("image")
-	defer im.Close()
-	suffix := filepath.Ext(header.Filename)
+	// // send image to ML and get score
 
-	// Client needs to know the media type so as to render it.
-	if t, ok := mediaTypes[suffix]; ok {
-		p.Type = t
-	} else {
-		p.Type = "unknown"
-	}
-	// ML Engine only supports jpeg.
-	if suffix == ".jpeg" {
-		if score, err := annotate(im); err != nil {
-			http.Error(w, "Failed to annotate the image", http.StatusInternalServerError)
-			fmt.Printf("Failed to annotate the image %v\n", err)
-			return
-		} else {
-			p.Face = score
-		}
-	}
+	// im, header, _ := r.FormFile("image")
+	// defer im.Close()
+	// suffix := filepath.Ext(header.Filename)
+
+	// // Client needs to know the media type so as to render it.
+	// if t, ok := mediaTypes[suffix]; ok {
+	// 	p.Type = t
+	// } else {
+	// 	p.Type = "unknown"
+	// }
+	// // ML Engine only supports jpeg.
+	// if suffix == ".jpeg" {
+	// 	if score, err := annotate(im); err != nil {
+	// 		http.Error(w, "Failed to annotate the image", http.StatusInternalServerError)
+	// 		fmt.Printf("Failed to annotate the image %v\n", err)
+	// 		return
+	// 	} else {
+	// 		p.Face = score
+	// 	}
+	// }
 
 	// Send the Post to Elastic Search
 	err = saveToES(&p, id)
@@ -349,12 +354,16 @@ func handlerSearch(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization")
 
+	if r.Method == "OPTIONS" {
+		return
+	}
+
 	// parse the lat and lon from request
 	lat, _ := strconv.ParseFloat(r.URL.Query().Get("lat"), 64)
 	lon, _ := strconv.ParseFloat(r.URL.Query().Get("lon"), 64)
 
 	// Elastic Search require distance as string
-	// range is optional
+	// range is optional, default is 200km
 	ran := DISTANCE
 	if val := r.URL.Query().Get("range"); val != "" {
 		ran = val + "km"
